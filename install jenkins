@@ -1,0 +1,44 @@
+jenkins install
+sudo add-apt-repository ppa:openjdk-r/ppa
+sudo apt-get update
+sudo apt-get install openjdk-8-jdk
+sudo update-alternatives --config java
+java -version
+javac -version
+wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add -
+echo deb https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list
+sudo apt-get update
+sudo apt-get install jenkins
+sudo ufw allow 8080
+sudo ufw status
+sudo ufw allow OpenSSH
+sudo ufw enable
+##############################################################
+create one jdk.sh  file 
+export JAVA_HOME=/opt/system/jdk1.8.0_231
+export PATH=${JAVA_HOME}/bin:${PATH}
+
+save and close the file  move the /etc/profile.d/jdk.sh
+
+source /etc/profile.d/jdk.sh
+##########################################################
+
+sudo wget https://archive.apache.org/dist/maven/maven-3/3.5.2/binaries/
+
+first download the mvn from maven apache site 3.5.2  apache-maven3.5.2.tar.gz 
+apache-maven3.5.2.tar.gz 
+tar -xzvf  apache-maven3.5.2.tar.gz 
+move the extracted one  apache-maven into /opt/system/ (keep the extracted maven here)
+
+create one the maven.sh
+export M2_HOME=/opt/system/apache-maven-3.5.2
+export PATH=${M2_HOME}/bin:${PATH}
+
+save and close the file  move the /etc/profile.d/maven.sh
+
+
+source  /etc/profile.d/maven.sh
+
+mvn (run the command in command line we get build failure mean it installed succefully)
+
+mvn –version
