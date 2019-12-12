@@ -1,0 +1,661 @@
+Kubernetes:
+ create the virtuval machine gcp
+
+Nodees:
+master 2cpu 6gbram
+workser 1cpu 3gbram
+os-centos7
+
+2.pre-requises:
+excute all abelow things in master&worker nodes
+#Disable firewall
+systemctl stop firewalld
+systemctl disable firewalld
+#disable swaoff -a  performance related off the swap
+swaoff -a
+sed -i.bak -r 's/(.+ swap .+)/#\1/'  /etc/fstab
+#disable the selinux off all node master and slave also
+setenforce 0
+sed -i 's/enforcing/disabled/g'  /etc/selinux/config
+grep disabled /etc/selinux/config | grep -v '#'
+
+---------------------------------------------------------------------------
+3.Download install kuberctl kubeadm kubelet and docker
+ sysctl --system(this is used for fixing issue where trafic being routed incorre to do iptables  being by pass updated in config) 
+
+#kubernetes repogistory
+
+
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kube*
+EOF
+
+#installing docker kubelet kubectl kubeadm
+yum update -y
+yum install -y  docker kubeadm kubelet   kubectl --disableexcludes=kubernetes
+
+#start enable docker kubernetes
+systemctl enable docker && systemctl start docker
+systemctl enable kubelet && systemctl start kubelet 
+
+#for cent and RHEL
+cat  <<EOF > /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+ 
+
+sysctl net.bridge.bridge-nf-call-iptables=1
+sysctl net.ipv4.ip_forward=1
+sysctl --system
+echo "1" > /proc/sys/net/ipv4/ip_forward
+
+systemctl daemon-reload
+systemctl restart kubelet
+
+----------------------------------------------------------------------------------------
+4. configure the kubenetes "master" 
+#intialize master node
+kubeadm  init --pod-network-cidr=10.240.0.0/16
+instllation kube
+we need to excute below three 
+----------------------------------------------------------
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+----------------------------------------------------------
+# install flaneel networking-pulg-in for cluster network.
+kubectl apply -f  https://raw.githubusercontent.com/coreos/flaneel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-legacy.yml
+kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml     (correct)
+
+kubectl  get pods  --all-namespaces
+
+--------------------------------------------
+5.jion the worker node to the cluster
+(kubeadm token create --print-join-command)
+
+kubeadm join 10.128.0.11:6443 --token bespkq.l8u8k0crrgathy1x \
+    --discovery-token-ca-cert-hash sha256:7e3962f5f44642076bd30a19d31ab96e3df5abc050b58ec0d73bb00aec28dcdc
+--------------------------------------
+once login the gcp  create the server then after using "view ssh " window then connect to cloud shell window then enter into that machine.
+6.testing
+#display nodes
+
+kubectl  get no
+
+kubectl  apply -f https://raw.githubsercontent.com/kubernetes/website/master/content/en/examples/controllers/nginx-deployment.yaml
+
+kubectl  get po -o  wide   (it show the wide outper the container)
+kubectl get pods
+
+
+------------------------------------------------------------------
+yum repo: https://packages.cloud.google.com/yum/repos/
+#################################################################################################
+18th;
+Podes in kubernetes:
+objectvie:
+what is pod?
+how pod deployment 
+multi-contained
+pod networking
+inter-pod & intra-pod  communication
+pod lifecycle
+pod manifest  file
+
+what is pod?
+Pod is Atomic unit of scheduling (they are virtuvalization and containerization)
+_____________________
+KUBERNETES INUBUNUTU
+
+https://www.techrepublic.com/article/how-to-quickly-install-kubernetes-on-ubuntu/	
+#####################################################################
+service in kubernetes:
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+######################################################################################
+apiVersion: app/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx-app
+spec:
+  replicas: 2
+  selector:
+    matchLables:
+      app: nginx-app
+  template:
+    metadata:
+      labels:
+        app: nginx-app
+    spec:
+      containers:
+      - name: nginx-container
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+##########################################################
+systemctl start firewalld
+firewall-cmd --list-all
+firewall-cmd --permanent --add-port=100/tcp
+firewall-cmd --reload
+vi /etc/services
+for access out side world :
+You have to login to the Google Cloud Console, then go to Networking -> VPC Network -> Firewall rules.
+
+Create a firewall rule that allows incoming TCP connections to port 8080. You already have permitted port 8080 on your linux instance using firewalld but Google has it's own firewall that does its filtering before the packets are actually hitting your linux instance.
+
+
+#############################################################
+uninstall kubernetes in ubuntu16.04
+kubeadm reset
+sudo apt-get purge kubeadm kubectl kubelet kubernetes-cni kube*   
+sudo apt-get autoremove  
+sudo rm -rf ~/.kube
+kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
+kubectl delete node <node name>
+##########################################################################
+minikube
+sudo apt-get update
+sudo apt-get install curl
+sudo apt-get install virtualbox virtualbox-ext-pack
+cd ~/Downloads
+curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+chmod +x minikube
+sudo mv -v minikube /usr/local/bin
+curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v1.8.0/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv -v kubectl /usr/local/bin
+minikube start
+kubectl get pod
+kubectl run hello-minikube --image=gcr.io/google_containers/echoserver:1.4 --port=8080
+kubectl expose deployment hello-minikube --type=NodePort
+minikube service hello-minikube --url
+minikube status
+kubectl get pods --all-namespaces
+minikube version
+kubectl cluster-info
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+ minikube start --vm-driver=kvm2
+cat ~/.kube/config
+remove----
+kubectl cluster-info
+minikube delete
+minikube start --vm-driver = virtualbox
+Kubernetes master is running at https: // <ip>: 8443
+minikube dashboard
+----------------------------------
+minikube stop
+minikube delete
+docker stop $(docker ps -aq)
+rm -rf ~/.kube ~/.minikube 
+sudo rm -rf /usr/local/bin/localkube /usr/local/bin/minikube
+launchctl stop '*kubelet*.mount' 
+launchctl stop localkube.service 
+launchctl disable localkube.service 
+sudo rm -rf /etc/kubernetes/ 
+------------------------------------------------
+
+ 022 41130458.
+kubectl run hello-web --image=gcr.io/test/hello-app:v1 --port 8080
+
+kubectl create service nodeport nginx --tcp=8080:80
+
+   37  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "worker-2"
+   38  malli123
+   39  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "worker-1"
+   40  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "worker-2"
+   41  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "master-1"
+   42  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "testing"
+   43  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "malli"
+   44  ls
+   45  cd test/
+   46  ls
+   47  cd ..
+   48  ls
+   49  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "master-1"
+   50  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "instance-1"
+   51  ls
+   52  ll
+   53  gcloud compute --project "elite-particle-242917" ssh --zone "us-central1-a" "instance-2"
+   54  gcloud beta compute --project "elite-particle-242917" ssh --zone "us-central1-a" "node-js"
+   55  gcloud beta compute --project "elite-particle-242917" ssh --zone "us-central1-a" "minikube"
+   56  gcloud beta compute --project "elite-particle-242917" ssh --zone "us-central1-a" "kubermaster"
+   57  ping 192.168.0.104
+   58  ping 192.168.0.250
+   59  ping 159.89.173.14
+   60  gcloud beta compute --project "elite-particle-242917" ssh --zone "us-central1-a" "kubermaster"
+   61  gcloud beta compute --project "elite-particle-242917" ssh --zone "us-central1-a" "node-1"
+   62  gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project elite-particle-242917
+   63  kubectl get node
+   64  kubectl get no
+   65  kubectl create deployment nginx --image=nginx
+   66  kubectl get deployments
+   67  kubectl create service nodeport nginx --tcp=80:80
+   68  kubectl  get no -O wide
+   69  kubectl  get no -o wide
+   70  kubectl  get po -o wide
+   71  curl gke-cluster-1-default-pool-ca46c5fe-rpmx:32171
+   72  curl  35.224.182.35:32171
+######################################################################################################
+    1  sudo yum install epel-release nodejs
+    2  sudo yum update
+    3  y
+    4  exit
+    5  sudo yum install java-1.8.0-openjdk.x86_64
+    6  sudo cp /etc/profile /etc/profile_backup
+    7  echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' | sudo tee -a /etc/profile
+    8  echo 'export JRE_HOME=/usr/lib/jvm/jre' | sudo tee -a /etc/profile source /etc/profile
+    9  sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+   10  wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+   11  yum install -y wget
+   12  wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+   13  wget -O /etc/yum.repos.d/jenkins.repo  https://pkg.jenkins.io/redhat-stable/jenkins.repo
+   14  sudo yum install -y jenkins
+   15  sudo systemctl start jenkins
+   16  sudo systemctl status jenkins
+   17  yum install -y nginx
+   18  sudo systemctl status nginx
+   19  sudo systemctl start nginx
+   20  sudo systemctl start jenkins
+   21  sudo systemctl restart jenkins
+   22  sudo yum install java-1.8.0-openjdk.x86_64
+   23  sudo cp /etc/profile /etc/profile_backup
+   24  echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' | sudo tee -a /etc/profile
+   25  echo 'export JRE_HOME=/usr/lib/jvm/jre' | sudo tee -a /etc/profile source /etc/profile
+   26  netstat -tunalp| grep jenkins
+   27  netstat -tunalp| grep 8080
+   28  sudo yum install -y jenkins
+   29  systemctl start jenkins
+   30  systemctl status jenkins
+   31  java -version
+   32  systemctl status jenkins
+   33  cd /var/log/jenkins/
+   34  ls
+   35  ll
+   36  vi jenkins.log
+   37  vim /etc/nginx/scgi_params.default
+   38  vi jenkins.log
+   39  vim /etc/nginx/nginx.conf
+   40  systemctl start firewalld
+   41  firewall-cmd --list-all
+   42  firewall-cmd --permanent --add-port=8080/tcp
+   43  firewall-cmd --list-all
+   44  firewall-cmd --reload
+   45  firewall-cmd --list-all
+   46  service jekins restart
+   47  systemctl jekins restart
+   48  systemctl jenkins restart
+   49  systemctl restart jenkins
+   50   firewall-cmd --list-all
+   51  vim jenkins.log
+   52  netstat  -tunlp | grep java
+   53  netstat  -tunlp | grep nginx
+   54  vim /etc/sysconfig/jenkins
+   55  systemctl restart jenkins
+   56  netstat  -tunlp | grep java
+   57  firewall-cmd --permanent --add-port=7070/tcp
+   58  firewall-cmd --reload
+   59  systemctl restart jenkins
+   60  netstat  -tunlp | grep java
+   61  hostname -I
+   62  firewall-cmd --list-all
+   63  firewall-cmd --zone=public --add-port=7070/tcp --permanent firewall-cmd --zone=public --add-service=http --permanent firewall-cmd --reload
+   64  firewall-cmd --zone=public --add-port=7070/tcp --permanent
+   65  firewall-cmd --zone=public --add-service=http --permanent
+   66  firewall-cmd --reload
+   67  cat /var/lib/jenkins/secrets/initialAdminPassword
+   68  systemctl restart jenkins
+   69  sudo groupadd docker
+   70  sudo usermod -aG docker jenkins
+   71  chmod root:docker /var/run/docker.sock
+   72  df -h
+   73  free -hm
+   74  Last login: Wed Jul 17 09:22:51 2019 from 119.240.198.35.bc.googleusercontent.com
+   75  systemctl enable kubernetes
+   76  systemctl start kubelet
+   77  yum update -y
+   78  yum install -y docker
+   79  systemctl enable docker
+   80  systemctl start docker
+   81  cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+   82  [kubernetes]
+   83  name=kubernetes
+   84  baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+   85  enabled=1
+   86  gpgcheck=1
+   87  repo_gpgcheck=1
+   88  gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+   89  exclude=kube*
+   90  EOF
+   91  yum update -y
+   92  vi' /etc/yum.repos.d/kubernetes.repo
+   93  vi /etc/yum.repos.d/kubernetes.repo
+   94  yum update -y
+   95  yum install -y  kubeadm kubelet   kubectl --disableexcludes=kubernetes
+   96  systemctl enable kubernetes systemctl enable kubernetes
+   97  systemctl enable kubernetes
+   98  cat  <<EOF > /etc/sysctl.d/k8s.conf
+   99  net.bridge.bridge-nf-call-ip6tables = 1
+  100  net.bridge.bridge-nf-call-iptables = 1
+  101  EOF
+  102  yum update -y
+  103  systemctl daemon-reload
+  104  systemctl restart kubelet
+  105  systemctl enable kubelet
+  106  systemctl restart kubelet
+  107  ll
+  108  cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+  109  [kubernetes]
+  110  name=kubernetes
+  111  baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+  112  enabled=1
+  113  gpgcheck=1
+  114  repo_gpgcheck=1
+  115  gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+  116  exclude=kube*
+  117  EOF
+  118  #installing docker kubelet kubectl kubeadm
+  119  yum update -y
+  120  yum install -y  docker kubeadm kubelet   kubectl --disableexcludes=kubernetes
+  121  #start enable docker kubernetes
+  122  systemctl enable docker && systemctl start docker
+  123  systemctl enable kubelet && systemctl start kubelet
+  124  #for cent and RHEL
+  125  cat  <<EOF > /etc/sysctl.d/k8s.conf
+  126  net.bridge.bridge-nf-call-ip6tables = 1
+  127  net.bridge.bridge-nf-call-iptables = 1
+  128  EOF
+  129
+  130  sysctl net.bridge.bridge-nf-call-iptables=1
+  131  sysctl net.ipv4.ip_forward=1
+  132  sysctl --system
+  133  echo "1" > /proc/sys/net/ipv4/ip_forward
+  134  systemctl daemon-reload
+  135  systemctl restart kubelet
+  136  kubeadm  init --pod-network-cidr=10.240.0.0/16
+  137   mkdir -p $HOME/.kube
+  138    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  139    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+  140  kubectl apply -f  https://raw.githubusercontent.com/coreos/flaneel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+  141  kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-legacy.yml
+  142  kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
+  143  kubectl  get pods  --all-namespaces
+  144  kubectl get nods
+  145  kubectl get no
+  146  kubectl  apply -f https://raw.githubsercontent.com/kubernetes/website/master/content/en/examples/controllers/nginx-deployment.yaml
+  147  kubectl  get po
+  148  kubectl  apply -f https://raw.githubsercontent.com/kubernetes/website/master/content/en/examples/controllers/nginx-deployment.yaml
+  149  kubectl get no
+  150  sudo kubectl create deployment nginx --image=nginx
+  151  kubectl  get po -o  wide
+  152  sudo kubectl create service nodeport nginx --tcp=80:80
+  153  kubectl  get po -o  wide
+  154  kubectl  get svc
+  155  kubectl  get po -o  wide
+  156  kubectl get no
+  157  kubectl create deployment nginx --image=nginx
+  158  kubectl delete deployment nginx
+  159  kubectl create deployment nginx --image=nginx
+  160  kubectl create service nodeport nginx --tcp=8080:80
+  161  kubectl get deployments
+  162   kubectl get svc
+  163  kubectl get po -o wide
+  164  kubectl  get no -o wide
+  165  kubectl get no
+  166   kubectl get kubectl get  svc
+  167   kubectl get svcc
+  168   kubectl get svc
+  169  systemctl enable kubelet && systemctl start kubelet
+  170   kubectl get svc
+  171  systemctl restart kubelet.service
+  172  Kubernetes version
+  173  Kubernetes --version
+  174   kubectl get svc
+  175  curl 10.110.235.17:32316
+  176  curl 34.67.24.226:32316
+  177  kubectl get deployments
+  178  mkdir docker
+  179  cd docker/
+  180  ls
+  181  git clone https://github.com/dockersamples/example-voting-app.git
+  182  git --version
+  183  sudo yum install git
+  184  git --version
+  185  git clone https://github.com/dockersamples/example-voting-app.git
+  186  ll
+  187  cd example-voting-app/
+  188  ll
+  189  kubectl create namespace vote
+  190  kubectl create -f k8s-specifications
+  191  kubectl get svx
+  192  kubectl get svc
+  193  docker ps
+  194  kubectl get po
+  195  kubectl get po -o wide
+  196  kubectl get svc -o wide
+  197  ll
+  198  cd
+  199  ls
+  200  ll
+  201  cd docker/
+  202  ll
+  203  cd ..
+  204  ls
+  205  cd docker/
+  206  ll
+  207  cd example-voting-app/
+  208  ll
+  209  service jenkins status
+  210  ps -ef | grep jenkins
+  211  netstat -tunlp | grep jenkins
+  212  netstat -tunlp | grep java
+  213  history
+#######################################################################################
+docker login:
+username
+passwd
+docker tag [OPTIONS] IMAGE[:TAG] [REGISTRYHOST/][USERNAME/]NAME[:TAG]
+docker push NAME[:TAG]
+docker tag 518a41981a6a myRegistry.com/myImage
+docker push myRegistry.com/myImage
+    docker login --username username --password password
+
+    docker tag my-image username/my-repo
+
+    docker push username/my-repo
+
+####################################################################################
+switch to jenkins user 
+sudo -i -u jenkins(go to jenkins user)
+mkdir .kube
+vi config(copy the .kube./config file from kubernetes master this way cicd with jenkins kubernetes)
+
+kubernetes cli install in jenkins server
+sudo apt-get update && sudo apt-get install -y apt-transport-https
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
+
+###############################################
+
+[root@kubermaster docker]# kubectl create deployment malli --image=docker.io/malli789/malli-apa-php
+
+this way to deployment the our own images in kubernetes after that we need to expose the service port for the deployment po use the (malli) name where we do deployment using same name we need to use and create he service port.
+[root@kubermaster docker]# kubectl create service nodeport malli --tcp=9090:80
+service/malli created
+after the get the out put use below command and then use the node ip and expose port hit into browser (ipaddres:31686  TCP) we get that into browser.
+[root@kubermaster docker]# kubectl get svc
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP          99d
+malli        NodePort    10.107.177.31   <none>        9090:31686/TCP   8s
+nginx        NodePort    10.110.235.17   <none>        80:32316/TCP     99d
+kubectl get services (list the port running service)
+
+kubectl create deployment malli --image=docker.io/malli789/malli-apa-php
+kubectl get po -o wide
+kubectl get po
+kubectl get svc
+kubectl create service nodeport malli --tcp:9090:80
+kubectl get po
+kubectl get svc
+kubectl get po -o wide
+kubectl create service nodeport malli --tcp=9090:80
+kubectl get svc
+docker pull malli789/malli-tom
+docker images
+kubectl create deployment tomcat --image=docker.io/malli789/malli-tom  -n malli
+kubectl create service nodeport tomcat --tcp=1000:8080(here 1000 was hostport and 8080 was docker container port)
+kubectl get svc
+kubectl get po -o wide
+kubectl delete deployment malli
+kubectl delete deployment tomcat(delete the deployment images)
+kubectl delete services tomcat(delete the service for the images)
+kubectl get namespaces (use this command to list all the available namespaces in your environment.)
+kubectl create namespace <namespace name>  (create a namespace, use kubectl create command.)
+kubectl get namespaces (Verify the new namespace.)
+--------------------------------------
+CREATE A CUSTOM NAMESPACE THROUGH YAML
+Create a new file and add the below coding.
+vi ns.yml
+apiVersion: v1
+kind: Namespace
+metadata:
+   name: custom-namespace
+Use the below command to create a namespace using YAML file.
+kubectl apply -f ns.yml
+----------------------------------------
+CREATE A NEW POD IN CUSTOM NAMESPACE
+Use the kubectl command to create a POD
+Syntax: kubectl run <pod name> --image=<image name> --port=<container port> --generator=run-pod/v1 -n <namespace name>
+Example: kubectl run ns-pod --image=nginx --port=80 --generator=run-pod/v1 -n aznamespace
+Verify the pod details using the below command.
+Syntax: kubecl get pods --namespace <namespace name>
+Example: kubectl get pods --namespace aznamespace
+DELETING THE NAMESPACE
+Syntax: kubectl delete pods --all --namespace <namespace name>
+Example: kubectl delete pods --all --namespace aznamespace
+To delete a namespace.
+Syntax: kubectl delete namespace <namespace name>
+https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+
+kubectl delete pods --all --namespace <namespace name>  delete all the pods in a namespace.
+kubectl get rc (replication control)
+kubectl delete svc mongo(delete service)
+kubectl delete svc springboot (delete the spring service)
+kubectl describe pods spring-controller-gb5j6(this way we need to check the pod logs)
+kubectl delete pods spring-controller-gb5j6(this is the way to delete the pods )
+kubectl get rc (when we use "kind: ReplicationController" that time we unable to delete the pod so first we get the rc and delete the rc 
+after the delete the pods this the way)
+kubectl delete rc spring-1
+
+__________________
+ kubectl cordon kube-node
+ kubectl delete node kube-node (if we delete the node use below stpes we will able again in running mode for node)
+rm -rf .kube
+rm -rf /etc/kubernetes
+rm -rf  /etc/kubernetes/kubelet.conf 
+rm -rf /etc/kubernetes/pki/ca.crt
+sudo netstat -nlpt  | grep :10250
+kill -9  10250
+systemctl stop kubelet
+https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+______________________________
+kubernetes : https://www.oreilly.com/ideas/how-to-manage-docker-containers-in-kubernetes-with-java
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

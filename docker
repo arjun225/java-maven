@@ -1,0 +1,342 @@
+docker file:
+----------------------------
+jenkins install
+sudo add-apt-repository ppa:openjdk-r/ppa
+sudo apt-get update
+sudo apt-get install openjdk-8-jdk(before install jenkins install java the install jenkins)
+sudo update-alternatives --config java
+java -version
+javac -version
+wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add -
+echo deb https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list
+sudo apt-get update
+sudo apt-get install jenkins
+sudo ufw allow 8080
+sudo ufw status
+sudo ufw allow OpenSSH
+sudo ufw enable
+
+wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add -
+echo deb http://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list
+sudo apt-get update
+sudo apt-get install jenkins
+------------------------------------------
+install kubernetes
+sudo su
+swapoff -a
+vi /etc/fstab
+vi /etc/ufw/sysctl.conf
+net/bridge/bridge-nf-call-ip6tables = 1
+net/bridge/bridge-nf-call-iptables = 1
+net/bridge/bridge-nf-call-arptables = 1
+add and save
+
+apt-get install -y ebtables ethtool
+
+apt-get update
+apt-get install -y docker.io
+apt-get update 
+apt-get install -y apt-transport-https
+apt-get install curl
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+apt-get update
+apt-get install -y kubelet kubeadm kubectl
+kubeadm init --pod-network-cidr=35.223.124.191/16
+kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml    
+systemctl daemon-reload
+systemctl restart kubelet
+systemctl enable kubelet && systemctl start kubelet 
+____________________________
+apt-get update -y	
+apt-get install -y apt-transport-https
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+apt-get update -y	
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+modprobe br_netfilter (enable the iptables beacuse   
+sysctl -p
+sudo sysctl net.bridge.bridge-nf-call-iptables=1
+apt install docker.io -y
+usermod -aG docker ubuntu
+systemctl restart docker
+systemctl enable docker.service
+apt-get install -y kubelet kubeadm kubectl kubernetes-cni
+systemctl daemon-reload
+systemctl  start  kubelet
+systemctl  start  kubelet.service (till here comman for master and slave machine)
+---------
+master
+kubeadm init
+mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+excute this command in normal user (malli) where we create the user
+kubectl apply -f"https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+kubeadm token create --print-join-command
+
+_______________________________________________
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt-get update
+sudo apt-get install -y docker-ce
+sudo systemctl status docker
+sudo usermod -aG docker ${USER}
+sudo -i -u jenkins
+sudo chmod 666 /var/run/docker.sock(when we run docker command in jenkins we are getting any permission are any other issue we need to add this step)
+---------------------------
+
+install docker.
+curl -fsSL get.docker.com | /bin/bash
+add user into docker group.  sudo usermod -aG docker jenkins
+Create a Dockerfile as shown below in a directory. Make sure file1 exists in the same directory. We are gong to mount file1 as /ubuntu1/file and mount /ubuntu1 as a VOLUME.
+FROM ubuntu
+ADD file1 /ubuntu1/file
+VOLUME /ubuntu1
+CMD /bin/sh
+
+ADD  helloworld.war  /usr/local/tomcat/webapps/helloworld.war
+VOLUME /usr/local/tomcat/webapps
+/usr/local/tomcat/webapps (tomcat path location)
+
+maven-3.5.2
+Maven-3.6.3
+kubernetes_config
+docker_hub
+node {
+    stage("git clone"){
+        git credentialsId: 'git_test', url: 'https://github.com/arjun225/spring-boot-mong-docker.git'
+        }
+    stage("maven"){
+        def mavenHome = tool name: "Maven-3.6.3", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "${mavenCMD} clean install"
+    }
+    stage("build image"){
+        sh "docker build -t malli789/spring-boot-mango-docker  ."
+    }
+    stage("docker push"){
+        withCredentials([string(credentialsId: 'docker_hub', variable: 'docker_hub')]) {
+      sh " docker login -u malli789 -p ${docker_hub}"
+    }
+    sh "docker push malli789/spring-boot-mango-docker"
+    }
+    stage("deploy in kubernetes"){
+        kubernetesDeploy(
+            configs: 'springBootMongo.yml' ,
+            kubeconfigId: 'kubernetes_malli',
+            enableConfigSubstitution: true
+            )
+    }
+}
+options { 
+  disableConcurrentBuilds() 
+  buildDiscarder(logRotator( numToKeepStr: '5', daysToKeepStr: '5'))
+}
+------------------------------------
+triggers { 
+  pollSCM('* * * * *')
+}
+pipeline {
+   agent none
+   environment {
+      APPVERSION = '0.1.0'
+      NUGET_API_KEY = credentials('build-server-nuget-id-readonly')
+   }
+   triggers {
+       // poll repo every 2 minute for changes
+       pollSCM('*/2 * * * *')
+   }
+   options {
+       // add timestamps to output
+       timestamps()
+       overrideIndexTriggers(false)
+       buildDiscarder(logRotator(numToKeepStr: '10'))
+       skipStagesAfterUnstable()
+       durabilityHint('PERFORMANCE_OPTIMIZED')
+   }
+...
+}
+https://dzone.com/articles/how-to-use-the-jenkins-declarative-pipeline
+--------------------------------------
+Kubernetes configuration (kubeconfig)	kubernetes_malli
+http://34.66.0.174:8080/job/test/pipeline-syntax/
+
+
+9581661733
+
+
+
+stage("deploy kubernetes"){
+ sh "kubectl apply -f 
+ }
+/home/malli/Downloads/SampleWebApp.war
+
+
+stage("maven"){
+        def mavenHome = tool name: "maven-3.5.2", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "${mavenCMD} clean package"
+    }
+
+
+pipeline{
+   stages{
+       
+   stage ('clone code'){
+                   git credentialsId: 'git_test', url: 'https://github.com/malli789/sping3.git'
+                   }
+                
+                stage ('build'){
+                    sh 'cd /var/lib/jenkins/workspace/test1; mvn clean install'
+                }
+}
+}
+--------------------------------------------
+node {
+     
+    stage("git clone"){
+        git  url: 'https://github.com/arjun225/shopfront-1.git'
+        }
+    stage("maven"){
+        def mavenHome = tool name: "maven-3.5.2", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "${mavenCMD} clean install"
+    }
+    stage("build image"){
+        sh "docker build -t malli789/djshopfront  ."
+    }
+   stage("docker push"){
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djshopfront"
+    }
+    stage("deploy in kubernetes"){
+        kubernetesDeploy(
+            configs: 'shopfront.yml' ,
+            kubeconfigId: 'kubernetes_malli',
+            enableConfigSubstitution: true
+            )
+    }
+}
+--------------------------------------------------
+node {
+    
+      triggers {
+       // poll repo every 2 minute for changes
+       pollSCM('*/2 * * * *')
+   }
+    stage("git clone"){
+        git  url: 'https://github.com/arjun225/shopfront-1.git'
+        }
+    stage("shopfront"){
+      
+        def mavenHome = tool name: "maven-3.5.2", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "cd  shopfront;${mavenCMD} clean install"
+        sh "cd  shopfront;docker build -t malli789/djshopfront:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djshopfront:1.0"
+    
+    sh "cd kubernetes;kubectl apply -f shopfront-service.yaml"
+    }
+    stage("productcatalogue"){
+        def mavenHome = tool name: "maven-3.5.2", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "cd productcatalogue;${mavenCMD} clean install"
+        sh "cd productcatalogue;docker build -t malli789/djproductcatalogue:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djproductcatalogue:1.0"
+    
+    sh "cd kubernetes;kubectl apply -f productcatalogue-service.yaml"
+    }
+    stage("stockmanager"){
+        def mavenHome = tool name: "maven-3.5.2", type: "maven"
+        def mavenCMD = "${mavenHome}/bin/mvn "
+        sh "cd stockmanager;${mavenCMD} clean install"
+        sh "cd stockmanager;docker build -t malli789/djstockmanager:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djstockmanager:1.0"
+   
+    sh "cd kubernetes; kubectl apply -f stockmanager-service.yaml"
+    }
+    
+}
+----------------------------------------
+pipeline {
+    agent any
+    stages {
+        stage('gitclone') {
+            steps {
+                echo 'Hello, Maven'
+                git  url: 'https://github.com/arjun225/shopfront-1.git'
+            }
+        }
+        stage('shopfront') {
+            steps {
+                sh 'java -version'
+                
+                sh 'cd  shopfront; mvn clean install'
+                sh "cd  shopfront;docker build -t malli789/djshopfront:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djshopfront:1.0"
+    
+    sh "cd kubernetes;kubectl apply -f shopfront-service.yaml"
+            }
+        }
+        stage('productcatalogue') {
+            steps {
+                sh "cd productcatalogue;mvn clean install"
+        sh "cd productcatalogue;docker build -t malli789/djproductcatalogue:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djproductcatalogue:1.0"
+    
+    sh "cd kubernetes;kubectl apply -f productcatalogue-service.yaml"
+            }
+        }
+        stage('stockmanager') {
+            steps {
+                sh "cd stockmanager;mvn clean install"
+        sh "cd stockmanager;docker build -t malli789/djstockmanager:1.0 ."
+        withCredentials([string(credentialsId: 'malli_docker', variable: 'malli_docker')]) {
+      sh " docker login -u malli789 -p ${malli_docker}"
+    }
+    sh "docker push malli789/djstockmanager:1.0"
+   
+    sh "cd kubernetes; kubectl apply -f stockmanager-service.yaml"
+            }
+        }
+        
+    }
+}
+__________________________
+FROM openjdk:8-alpine
+
+# Required for starting application up.
+RUN apk update && apk add /bin/sh
+
+RUN mkdir -p /opt/app
+ENV PROJECT_HOME /opt/app
+
+COPY target/spring-boot-mongo-1.0.war $PROJECT_HOME/spring-boot-mongo.war
+
+WORKDIR $PROJECT_HOME
+CMD ["catalina.sh","run"]
+ENTRYPOINT ["java","-war","target/recruitment-service-0.0.1.war"]
+_____________________________________________________________
