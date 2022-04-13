@@ -12,7 +12,7 @@ excute all abelow things in master&worker nodes
 systemctl stop firewalld
 systemctl disable firewalld
 #disable swaoff -a  performance related off the swap
-swaoff -a
+swapoff -a
 sed -i.bak -r 's/(.+ swap .+)/#\1/'  /etc/fstab
 #disable the selinux off all node master and slave also
 setenforce 0
