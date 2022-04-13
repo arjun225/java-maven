@@ -85,6 +85,11 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+You need install a Network Policy Provider, this is one of supported provider: Weave Net for NetworkPolicy. command line to install:
+
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
 ----------------------------------------------------------
 # install flaneel networking-pulg-in for cluster network.
 kubectl apply -f  https://raw.githubusercontent.com/coreos/flaneel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
