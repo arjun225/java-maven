@@ -115,7 +115,24 @@ kubectl  apply -f https://raw.githubsercontent.com/kubernetes/website/master/con
 
 kubectl  get po -o  wide   (it show the wide outper the container)
 kubectl get pods
+----------------------------------------------------
+issue with flannle in kubernetes
+So basically there are some problems with flannel working on kubernetes v1.16 and you need to add "cniVersion": "0.2.0" to kube-flannel.yml file
 
+ added this there so everything you need to do is use:
+
+sudo kubeadm reset 
+
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+sudo sysctl net.bridge.bridge-nf-call-iptables=1
+use nano or vi to create a kube-flannel.yaml file and copy above yaml to it.
+
+sudo kubectl apply -f kube-flannel.yaml
 
 ------------------------------------------------------------------
 yum repo: https://packages.cloud.google.com/yum/repos/
