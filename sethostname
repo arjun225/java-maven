@@ -1,0 +1,23 @@
+sudo hostnamectl set-hostname NEW_HOSTNAME
+For Older Linux distributions, which uses SysVinit in short init, can have their hostnames changed by simply editing the hostname file located in:
+
+# vi /etc/hostname
+You then have to add another record for the hostname in:
+
+# vi /etc/hosts
+For example:
+
+127.0.0.1 TecMint
+You then need to run:
+/etc/init.d/hostname restart
+On RHEL/CentOS based systems that use init, the hostname is changed by modifying:
+
+# vi /etc/sysconfig/network
+Here is a sample of that file:
+
+/etc/sysconfig/network
+NETWORKING=yes
+HOSTNAME="tecmint.com"
+GATEWAY="192.168.0.1"
+GATEWAYDEV="eth0"
+FORWARD_IPV4="yes"
