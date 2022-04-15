@@ -46,7 +46,7 @@ install jenkins on centos 7
 sudo yum -y install epel-release
 
 sudo yum -y install epel-release
-sudo yum install java-11-openjdk
+sudo yum install java-11-openjdk -y
 
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
 
