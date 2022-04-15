@@ -50,7 +50,7 @@ sudo yum install java-11-openjdk -y
 
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
 
-sudo yum -y install wget
+ sudo yum -y install wget
 sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 
 sudo yum install jenkins -y
@@ -68,5 +68,71 @@ sudo firewall-cmd --list-all
 sudo ss -tunelp | grep 8080
 
 cat /var/lib/jenkins/secrets/initialAdminPassword
+
+--+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+sudo yum install epel-release
+sudo yum update
+sudo reboot
+sudo yum install -y java-1.8.0-openjdk.x86_64
+
+sudo cp /etc/profile /etc/profile_backup
+echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' | sudo tee -a /etc/profile
+echo 'export JRE_HOME=/usr/lib/jvm/jre' | sudo tee -a /etc/profile
+source /etc/profile
+echo $JAVA_HOME
+echo $JRE_HOME
+
+cd ~ 
+sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+yum install -y jenkins
+
+sudo systemctl start jenkins.service
+sudo systemctl enable jenkins.service
+sudo firewall-cmd --zone=public --permanent --add-port=8080/tcp
+sudo firewall-cmd --reload
+
+Step 4: Install Nginx (optional)
+In order to facilitate visitors' access to Jenkins, you can setup an Nginx reverse proxy for Jenkins, so visitors will no longer need to key in the port number 8080 when accessing your Jenkins application.
+
+Install Nginx using YUM:
+
+sudo yum install nginx
+Modify the configuration of Nginx:
+
+sudo vi /etc/nginx/nginx.conf
+Find the two lines below:
+
+location / {
+}
+Insert the six lines below into the { } segment:
+
+proxy_pass http://127.0.0.1:8080;
+proxy_redirect off;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+The final result should be:
+
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_redirect off;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+Save and quit:
+
+:wq
+Start and enable the Nginx service:
+
+sudo systemctl start nginx.service
+sudo systemctl enable nginx.service
+Allow traffic on port 80:
+
+sudo firewall-cmd --zone=public --permanent --add-service=http
+sudo firewall-cmd --reload
 
 
