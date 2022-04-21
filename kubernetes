@@ -501,6 +501,8 @@ kubectl get namespaces (use this command to list all the available namespaces in
 kubectl create namespace <namespace name>  (create a namespace, use kubectl create command.)
 kubectl get namespaces (Verify the new namespace.)
  kubectl exec -i -t   petclinic-5d49754fb5-n8v5q -- /bin/bash  (using this we will connect pod)
+ kubectl scale deployment petclinic --replicas=2  (using this we will increase repicas for running pods)
+ 
 --------------------------------------
 CREATE A CUSTOM NAMESPACE THROUGH YAML
 Create a new file and add the below coding.
