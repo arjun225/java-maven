@@ -1,0 +1,241 @@
+sudo rm -f /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS7
+sudo curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS7 https://www.centos.org/keys/RPM-GPG-KEY-CentOS7
+sudo chmod 644 /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS7
+sudo yum clean all
+sudo yum update
+
+
+---------------------------------------------
+install docker in centos
+curl -fsSL https://get.docker.com/ | sh
+sudo systemctl start docker
+sudo systemctl status docker
+-----------------------------
+Kubernetes:
+ create the virtuval machine gcp
+
+Nodees:
+master 2cpu 2gbram
+workser 1cpu 3gbram
+os-centos7
+
+2.pre-requises:
+excute all abelow things in master&worker nodes
+#Disable firewall
+
+#disable swaoff -a  performance related off the swap
+swapoff -a
+sed -i.bak -r 's/(.+ swap .+)/#\1/'  /etc/fstab
+#disable the selinux off all node master and slave also
+setenforce 0
+sed -i 's/enforcing/disabled/g'  /etc/selinux/config
+grep disabled /etc/selinux/config | grep -v '#'
+
+vi /etc/hosts
+192.168.189.130 master-node
+192.168.189.136 worker-node1
+
+---------------------------------------------------------------------------
+3.#Download install kubectl kubeadm kubelet and docker
+ #sysctl --system(this is used for fixing issue where trafic being routed incorre to do iptables  being by pass updated in config) 
+
+#kubernetes repogistory
+
+cd /etc/yum.repos.d/
+
+vi kubernetes.repo    (we need to add this new step)
+
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+----------------------------------------------------------------
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+rpm --import https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+--------------------------------------------------------------
+
+#installing docker kubelet kubectl kubeadm before kubernetes we need to install the docker
+sudo yum remove kubeadm kubectl kubelet kubernetes-cni kube*
+sudo yum autoremove
+
+if we change yumrepo file of kubernetes for update version that secnario we need to use the
+ yum clean metadata
+ 
+sudo rm -rf ~/.kube
+
+yum update -y
+yum install -y  kubeadm kubelet   kubectl --disableexcludes=kubernetes
+
+stop the yum activetity using below
+cd /var/run
+rm -f yum.pid
+
+sudo hostnamectl set-hostname master-node (in master)
+sudo hostnamectl set-hostname worker-node1 (worker1)
+
+sudo firewall-cmd --permanent --add-port=6443/tcp
+sudo firewall-cmd --permanent --add-port=2379-2380/tcp
+sudo firewall-cmd --permanent --add-port=10250/tcp
+sudo firewall-cmd --permanent --add-port=10251/tcp
+sudo firewall-cmd --permanent --add-port=10252/tcp
+sudo firewall-cmd --permanent --add-port=10255/tcp
+firewall-cmd --reload
+
+#start enable docker kubernetes
+systemctl enable docker && systemctl start docker
+systemctl enable kubelet && systemctl start kubelet 
+
+#for cent and RHEL
+cat  <<EOF > /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+ 
+
+sysctl net.bridge.bridge-nf-call-iptables=1
+sysctl net.ipv4.ip_forward=1
+sysctl --system
+echo "1" > /proc/sys/net/ipv4/ip_forward
+
+systemctl daemon-reload
+systemctl restart kubelet
+systemctl status firewalld
+-------------------------------------
+kubelet is not running
+
+sudo swapoff -a  
+sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+#I faced similar issue recently. The problem was cgroup driver. Kubernetes cgroup driver was set to systems but docker was set to systemd. 
+So I created /etc/docker/daemon.json and added below:
+
+vi /etc/docker/daemon.json
+
+{
+    "exec-opts": ["native.cgroupdriver=systemd"]
+}
+
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+systemctl daemon-reload
+systemctl restart kubelet
+
+systemctl status kubelet
+
+#we need to excute below three 
+#if its not running we need to use this two command then after we need to excute the kubeadm init command
+rm -rf /etc/containerd/config.toml
+systemctl restart containerd
+
+getting docker issues using this 
+mv /etc/docker/daemon.json /etc/docker/daemon.json.bak
+echo '{}' > /etc/docker/daemon.json
+
+
+mv /etc/containerd/config.toml /root/config.toml.bak
+systemctl restart containerd
+
+#till here we need to excute this stpes on master and worker node as well
+
+#if worker node is not ready we need to enable the firewall on it
+
+till here we need to excute on both master and worker 
+
+sudo yum-config-manager --disable kubernetes
+
+----------------------------------------------------------------------------------------
+
+sudo systemctl start containerd
+sudo systemctl enable containerd
+crictl -r unix:///var/run/containerd/containerd.sock info
+4. configure the kubenetes "master"  below stpes only excute in master 
+#intialize master node
+
+kubeadm  init --pod-network-cidr=10.244.0.0/16      "--ignore-preflight-errors=..."
+
+
+ "--ignore-preflight-errors=..."
+kubeadm reset  (if we need to reset the kubernetes)
+instllation kube
+"cniVersion": "0.3.1" /etc/cni/net.d/10-flannel.conflist change 0.2.0
+----------------------------------------------------------
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+
+#You need install a Network Policy Provider, this is one of supported provider: Weave Net for NetworkPolicy. command line to install:
+
+#kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+----------------------------------------------------------
+# install flaneel networking-pulg-in for cluster network.
+
+#kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml     (correct)
+
+kubectl  get pods  --all-namespaces
+
+#kubectl patch node slave-node-1 -p '{"spec":{"podCIDR":"10.240.0.0/16"}}'
+
+--------------------------------------------
+5.jion the worker node to the cluster
+(kubeadm token create --print-join-command)
+
+kubeadm join 192.168.11.130:6443 --token cysqh3.y63qzxx263rn99kx \
+        --discovery-token-ca-cert-hash sha256:5769aa5f9bd90c856d153bd85350e3587debf0af736ed21ba110eae5367ecdb5
+
+
+
+------------------------------------------------------------------------------------------------------------------
+no need to excute this
+kubectl apply -f  https://raw.githubusercontent.com/coreos/flaneel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-legacy.yml
+-----------------------------------------------------------------------------------kubectl get services (list the port running service)
+sudo kubectl create deployment nginx --image=nginx  (create po using deployment on command)
+sudo kubectl create service nodeport nginx --tcp=80:80  (this is service for the deployment of nginx)
+kubectl create deployment malli --image=docker.io/malli789/malli-apa-php   (create po using deployment on command)
+kubectl create service nodeport malli --tcp:9090:80     (this is service for the deployment of malli)
+kubectl get po -o wide  (check the complete out put of po)
+kubectl get po
+kubectl get svc -o wide (check this command we get complete details of service)
+kubectl create service nodeport malli --tcp:9090:80   
+
+
+kubectl create service nodeport malli --tcp=9090:80
+docker pull malli789/malli-tom
+docker images
+kubectl create deployment tomcat --image=docker.io/malli789/malli-tom  -n malli
+kubectl create service nodeport tomcat --tcp=1000:8080(here 1000 was hostport and 8080 was docker container port)
+kubectl delete deployment malli
+ kubectl describe po po-name  (using this we will check the pod logs)
+kubectl delete deployment tomcat(delete the deployment images)
+kubectl delete services tomcat(delete the service for the images)
+kubectl get namespaces (use this command to list all the available namespaces in your environment.)
+kubectl create namespace <namespace name>  (create a namespace, use kubectl create command.)
+kubectl get namespaces (Verify the new namespace.)
+ kubectl exec -i -t   petclinic-5d49754fb5-n8v5q -- /bin/bash  (using this we will connect pod)
+ kubectl scale deployment petclinic --replicas=2  (using this we will increase repicas for running pods)
+
+kubectl scale deployment/my-nginx --replicas=1
+
+ kubectl edit deployment/nginx-deployment  (edit the runing deployment replicas)
+kubectl get rs
+kubectl get rc
+
+
+service-account
+secret
+role- api resource(all api), resource(deployment, service, confimaps, secret,pod), verbs(get, create, apply, delete,edit, describe)
